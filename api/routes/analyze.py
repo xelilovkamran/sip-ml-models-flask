@@ -1,12 +1,12 @@
 from flask import Blueprint, jsonify, request
+from ultralytics import YOLO
+import numpy as np
 import joblib
+import requests
 import logging
 import gdown
 import os
-from ultralytics import YOLO
 import cv2
-import requests
-import numpy as np
 
 
 analyze = Blueprint('analyze_routes', __name__)
@@ -65,42 +65,42 @@ def analyze_comment_image():
         return jsonify({'message': 'Şəkil linki və şərh yüklənmədi'}), 400
 
     try:
-        # Şəkili endirib oxuyuruq
+        # load image from URL and decode it
         response = requests.get(image_url)
         image = cv2.imdecode(np.frombuffer(
             response.content, np.uint8), cv2.IMREAD_COLOR)
 
-        # Modeli istifadə edərək deteksiya
+        # Detect objects in the image
         results = model(image)
 
-        # Debug: Detaylı məlumat ver
+        # Debug: print results
         logging.debug(f"Results: {results}")
 
-        # Bıçaq deteksiyası üçün yoxlama
+        # Check if knife is detected
         knife_detected = False
         for result in results:
             for box in result.boxes:
                 logging.debug(
                     f"Box Class: {box.cls}, Box Confidence: {box.conf}")
-                if box.cls == 0:  # Burada 0 bıçağın sinif ID'si olaraq varsayılmışdır
+                if box.cls == 43:
                     knife_detected = True
                     break
 
         if knife_detected:
             sentiment = "negative"
         else:
-            # Vektorlaşdırma
+            # Vectorize the comment
             comment_vectorized = vectorizer.transform([comment])
 
-            # Sentiment analizi
+            # Predict sentiment
             sentiment = sentiment_model.predict(comment_vectorized)[0]
 
-        # Nəticəyə əsasən cavab
+        # Return the result
         if knife_detected:
             return jsonify({'message': 'Təhlükəli şəkil: Bıçaq aşkar edildi!', 'sentiment': sentiment}), 200
         else:
             return jsonify({'message': 'Təhlükəsiz şəkil: Bıçaq aşkar edilmədi.', 'sentiment': sentiment}), 200
 
     except Exception as e:
-        logging.error(f"Xəta: {e}")  # Xətanın ətraflı məlumatını yazdırın
+        logging.error(f"Xəta: {e}")
         return jsonify({'error': 'Xəta baş verdi!'}), 500
