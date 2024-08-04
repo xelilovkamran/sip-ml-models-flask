@@ -2,8 +2,8 @@ import requests
 
 
 def test_analyze():
-    url = 'http://127.0.0.1:5000/analyze/analyze-comment'
-    test_comments = [
+    url = 'http://127.0.0.1:5000/analyze/analyze-content'
+    test_contents = [
         "I love this product.",
         "This is absolutely terrible.",
         "I am very happy with my purchase.",
@@ -26,9 +26,9 @@ def test_analyze():
         "I hate to be great",
     ]
 
-    for comment in test_comments:
-        response = requests.post(url, json={'comment': comment})
-        print(f"Comment: {comment}")
+    for content in test_contents:
+        response = requests.post(url, json={'content': content})
+        print(f"Comment: {content}")
         print(f"Response: {response.json()}")
 
 

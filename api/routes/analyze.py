@@ -19,7 +19,7 @@ def download_model_from_gdrive(file_id, output_path):
 
 model = YOLO('yolov8x.pt')
 
-file_id = '1hNEbjphrlDHIKIlvRr8UD3c6lQofZpF4'
+file_id = '1z2fnCNCd2ZDzwE0QS8qRy6k-lfa0f9mz'
 model_path = 'ml/model.pkl'  # Temporary path to store the model file
 
 if not os.path.exists(model_path):
@@ -40,26 +40,26 @@ except Exception as e:
     raise e
 
 
-@analyze.route('/analyze-comment/', methods=['POST'])
+@analyze.route('/analyze-content', methods=['POST'])
 def analyze_comment():
     data = request.json
-    comment = data.get('comment', '')
+    content = data.get('content', '')
 
     try:
-        comment_vectorized = vectorizer.transform([comment])
+        content_vectorized = vectorizer.transform([content])
 
-        sentiment = sentiment_model.predict(comment_vectorized)[0]
-        return jsonify({'sentiment': sentiment})
+        predicted_status = sentiment_model.predict(content_vectorized)[0]
+        return jsonify({'status': predicted_status})
     except Exception as e:
         logging.error(f"Error during analysis: {e}")
         return jsonify({'error': 'Error during analysis'}), 500
 
 
-@analyze.route('/analyze-comment-image/', methods=['POST'])
+@analyze.route('/analyze-content-image', methods=['POST'])
 def analyze_comment_image():
     data = request.json
     image_url = data.get('image_url', '')
-    comment = data.get('comment', '')
+    comment = data.get('content', '')
 
     if not image_url or not comment:
         return jsonify({'message': 'Şəkil linki və şərh yüklənmədi'}), 400

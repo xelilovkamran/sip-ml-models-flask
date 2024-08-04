@@ -2,7 +2,7 @@ import requests
 
 
 def test_analyze():
-    url = 'http://127.0.0.1:5000/analyze/analyze-comment-image'
+    url = 'http://127.0.0.1:5000/analyze/analyze-content-image'
     test_image_url = 'https://res.cloudinary.com/dvp7p1gol/image/upload/v1722452452/gp8jwkcw8fm4krp3grov.webp'
     test_comment = "I love"
 
