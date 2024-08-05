@@ -1,47 +1,32 @@
 from flask import Blueprint, jsonify, request
-from ultralytics import YOLO
 import numpy as np
 import joblib
-import requests
 import logging
-import gdown
-import os
 import cv2
+from api.helpers.helper import url_to_image
 
 
 analyze = Blueprint('analyze_routes', __name__)
 
-
-def download_model_from_gdrive(file_id, output_path):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, output_path, quiet=False)
-
-
-model = YOLO('yolov8x.pt')
-
-file_id = '1z2fnCNCd2ZDzwE0QS8qRy6k-lfa0f9mz'
-model_path = 'ml/model.pkl'  # Temporary path to store the model file
-
-if not os.path.exists(model_path):
-    download_model_from_gdrive(file_id, model_path)
-
-try:
-    with open(model_path, 'rb') as model_file:
-        sentiment_model, vectorizer = joblib.load(model_file)
-
-    if not hasattr(vectorizer, 'transform'):
-        raise ValueError(
-            "Loaded object 'vectorizer' is not a valid vectorizer.")
-
-    if not hasattr(sentiment_model, 'predict'):
-        raise ValueError("Loaded object 'model' is not a valid model.")
-except Exception as e:
-    logging.error(f"Error loading model and vectorizer: {e}")
-    raise e
+sentiment_model_path = 'ml/model.pkl'
+image_model_path = 'ml/cascade.xml'
 
 
 @analyze.route('/analyze-content', methods=['POST'])
 def analyze_comment():
+    try:
+        with open(sentiment_model_path, 'rb') as model_file:
+            sentiment_model, vectorizer = joblib.load(model_file)
+
+        if not hasattr(vectorizer, 'transform'):
+            raise ValueError(
+                "Loaded object 'vectorizer' is not a valid vectorizer.")
+
+        if not hasattr(sentiment_model, 'predict'):
+            raise ValueError("Loaded object 'model' is not a valid model.")
+    except Exception as e:
+        return jsonify({'error': 'Error during model loading'}), 500
+
     data = request.json
     content = data.get('content', '')
 
@@ -55,52 +40,26 @@ def analyze_comment():
         return jsonify({'error': 'Error during analysis'}), 500
 
 
-@analyze.route('/analyze-content-image', methods=['POST'])
+@analyze.route('/analyze-image', methods=['POST'])
 def analyze_comment_image():
+    gun_cascade = cv2.CascadeClassifier(image_model_path)
+
     data = request.json
     image_url = data.get('image_url', '')
-    comment = data.get('content', '')
+    image = url_to_image(image_url)
 
-    if not image_url or not comment:
-        return jsonify({'message': 'Şəkil linki və şərh yüklənmədi'}), 400
+    if image is None:
+        return jsonify({'error': 'Error during image loading'}), 500
+    else:
+        resized_image = cv2.resize(
+            image, (500, int(image.shape[0] * 500 / image.shape[1])))
 
-    try:
-        # load image from URL and decode it
-        response = requests.get(image_url)
-        image = cv2.imdecode(np.frombuffer(
-            response.content, np.uint8), cv2.IMREAD_COLOR)
+        gray = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
 
-        # Detect objects in the image
-        results = model(image)
+        gun = gun_cascade.detectMultiScale(
+            gray, scaleFactor=1.3, minNeighbors=20, minSize=(100, 100))
 
-        # Debug: print results
-        logging.debug(f"Results: {results}")
+        if len(gun) > 0:
+            return jsonify({'status': 'negative'})
 
-        # Check if knife is detected
-        knife_detected = False
-        for result in results:
-            for box in result.boxes:
-                logging.debug(
-                    f"Box Class: {box.cls}, Box Confidence: {box.conf}")
-                if box.cls == 43:
-                    knife_detected = True
-                    break
-
-        if knife_detected:
-            sentiment = "negative"
-        else:
-            # Vectorize the comment
-            comment_vectorized = vectorizer.transform([comment])
-
-            # Predict sentiment
-            sentiment = sentiment_model.predict(comment_vectorized)[0]
-
-        # Return the result
-        if knife_detected:
-            return jsonify({'message': 'Təhlükəli şəkil: Bıçaq aşkar edildi!', 'sentiment': sentiment}), 200
-        else:
-            return jsonify({'message': 'Təhlükəsiz şəkil: Bıçaq aşkar edilmədi.', 'sentiment': sentiment}), 200
-
-    except Exception as e:
-        logging.error(f"Xəta: {e}")
-        return jsonify({'error': 'Xəta baş verdi!'}), 500
+    return jsonify({'status': 'non-negative'})
